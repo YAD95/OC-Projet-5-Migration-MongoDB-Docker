@@ -1,2 +1,2 @@
-pandas
-pymongo
+pandas==2.3.2
+pymongo==4.16.0
