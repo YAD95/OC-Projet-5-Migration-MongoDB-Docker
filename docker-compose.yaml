@@ -6,9 +6,10 @@ services:
       - "27018:27017"
     volumes:
       - mongo_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin_medical
-      - MONGO_INITDB_ROOT_PASSWORD=Louvre
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
 
   script_python:
     build: .

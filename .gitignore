@@ -1,3 +1,6 @@
 __pycache__/
 .venv/
 mongo_data/
+.env
+*.docx
+export_data_medical.json

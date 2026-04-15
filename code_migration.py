@@ -40,28 +40,32 @@ try:
     mongo_user = os.getenv("MONGO_USER", "")
     mongo_mdp = os.getenv("MONGO_MDP", "")
     
-    # 1. On prépare l'URL de connexion selon si on a un mot de passe ou non
-    if mongo_user and mongo_mdp:
-        print("🔒 Tenative de la connexion SÉCURISÉE avec identifiants...")
-        mongo_url = f"mongodb://{mongo_user}:{mongo_mdp}@{mongo_host}:27017/"
-        print("  connexion SÉCURISÉE avec identifiants résussis✅ ")
 
+    if mongo_user and mongo_mdp:
+        print("🔒 Tentative de connexion SÉCURISÉE avec identifiants...")
+        mongo_url = f"mongodb://{mongo_user}:{mongo_mdp}@{mongo_host}:27017/"
+        mode_securise = True
     else:
-        print("🔓 connexion SÉCURISÉE avec identifiants échoué ❌ \n  Connexion LOCALE sans mot de passe...")
+        print("🔓 Mode local détecté. Tentative de connexion sans mot de passe...")
         mongo_url = f"mongodb://{mongo_host}:27017/"
+        mode_securise = False
 
     
     client = pymongo.MongoClient(mongo_url)
     db = client["MedicalDB"]
     collection = db["Patients"]
     
-    
-    print("✅✅✅ Connexion à MongoDB réussie")
+    if mode_securise:
+        print("✅ Connexion SÉCURISÉE validée !")
+    else:
+        print("✅ Connexion LOCALE validée !")
+        
+    print("✅✅✅ Base de données prête pour la migration")
 
 except Exception as e:
-    print(f"❌❌❌ Erreur de connexion : {e}")
+    print(f"❌❌❌ CRASH - Erreur de connexion : {e}")
 
-# DataFrame ---> Liste de dictionnaires car mongo comprends pas CVS il veut dictionnaire json
+# dataframe en liste de dictionnaires car mongo comprends pas CVS il veut dictionnaire json
 donnees_a_importer = df.to_dict(orient='records')
 
 
@@ -91,12 +95,45 @@ if '_id' in df_export.columns:
 df_export.to_json("export_data_medical.json", orient="records", date_format='iso', indent=4)
 print("📥 Données exportées avec succès dans 'export_data_medical.json'.")
 
-# test 'd'intégrité automatisé (Recommandation Boris ) 
+# test 'd'intégrité automatisé (recommandation Boris ) 
 count_mongo = collection.count_documents({})
 count_df = len(df)
 
 print("\n ----- RAPPORT DE TEST AUTOMATISÉ -----")
+tests_reussis = 0
+
+#  TEST 1 : vérification cohérance si c'est similaire dans dictionnaire et dataframe
 if count_mongo == count_df:
     print(f"✅ SUCCÈS : 54966 documents trouvés en base sur 54966 attendus.")
+    tests_reussis += 1
 else:
     print(f"❌ ÉCHEC : Incohérence entre le fichier ({count_df}) et la base ({count_mongo}).")
+
+
+#  TEST 2 : vérification si tous les identifiants sont unique 
+distinct_ids = len(collection.distinct("_id"))
+
+if distinct_ids == count_mongo:
+    print(f"✅ TEST 2 SUCCÈS : Intégrité OK. Tous les {distinct_ids} documents ont un '_id' unique.")
+    tests_reussis += 1
+else:
+    print(f"❌ TEST 2 ÉCHEC : Présence de doublons ! Seulement {distinct_ids} '_id' uniques trouvés.")
+
+#  TEST 3 : qualité des données (zéro valeur manquante sur les champs important)
+missing_values = collection.count_documents({
+    "$or": [
+        {"Name": {"$in": [None, ""]}},
+        {"Age": {"$in": [None, ""]}}
+    ]
+})
+
+if missing_values == 0:
+    print("✅ TEST 3 SUCCÈS : Qualité OK. Aucun patient inséré avec un Nom ou un Âge manquant.")
+    tests_reussis += 1
+else:
+    print(f"❌ TEST 3 ÉCHEC : Attention, {missing_values} documents ont des valeurs critiques manquantes.")
+    
+print("------------------------------------------")
+print(f"🏆 SCORE FINAL : {tests_reussis}/3 tests passés avec succès !")
+print("------------------------------------------\n")
+
